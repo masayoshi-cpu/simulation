@@ -314,10 +314,12 @@ footer{background:var(--navy-2);color:#b9c3d6;font-size:12px;padding:18px 0;text
         </div>
         <div class="fld"><label>新築住宅の減額</label><div class="ctl">
           <select id="newBldgReduction">
-            <option value="3" selected>建物1/2減額 3年間（一般）</option>
-            <option value="5">建物1/2減額 5年間（3階建以上耐火等）</option>
+            <option value="3" selected>建物1/2減額 3年間（一般住宅）</option>
+            <option value="5">建物1/2減額 5年間（中高層耐火・長期優良一般）</option>
+            <option value="7">建物1/2減額 7年間（長期優良×中高層耐火）</option>
             <option value="0">適用なし</option>
           </select></div></div>
+        <div class="hint">※固定資産税のみ対象。都市計画税は減額されません。床面積120㎡相当分まで（超過分は通常課税）。適用期限：2031年3月31日まで</div>
         <button class="btn-sm" onclick="calcTax()">固都税を計算して反映</button>
         <div class="tax-result" id="taxResult" style="display:none"></div>
       </div>
@@ -694,7 +696,7 @@ function calcTax(){
     <tr><td>建物：都市計画税</td><td>${yen(bldgToshi)}円</td></tr>
     <tr class="tt"><td>初年度 年額合計（減額適用後）</td><td>${yen(y1)}円</td></tr>
   </table>
-  <div style="margin-top:6px;font-size:11px;color:#9aa0ab">※概算です。負担調整措置・自治体独自の軽減・端数処理により実際の税額とは異なる場合があります。</div>`;
+  <div style="margin-top:6px;font-size:11px;color:#9aa0ab">※概算です。負担調整措置・自治体独自の軽減・端数処理により実際の税額とは異なる場合があります。新築減額は固定資産税のみ適用（都市計画税は対象外）。減額は120㎡相当分まで。</div>`;
 }
 
 /* ====== パラメータ読取 ====== */
@@ -899,103 +901,277 @@ function downloadExcel(){
   const today=new Date().toLocaleDateString('ja-JP');
   const R1=v=>Math.round(v);
 
-  const cover=[
-    [],[],
-    ['','賃貸経営 事業収支シミュレーション'],
-    [],
-    ['','作成日',today],
-    ['','保有主体',p.owner==='corp'?'法人':'個人'],
-    ['','建物構造',p.structure+`（法定耐用年数${STRUCTURE_LIFE[p.structure]}年）`],
-    ['','賃貸専有面積',p.rentableArea+' ㎡'],
-    ['','建築費総額',R1(p.constructionCost)+' 円'],
-    ['','借入金額（事業分）',R1(p.loanAmount)+' 円'],
-    ['','自己資金',R1(p.equity)+' 円'],
-    ['','シミュレーション期間',p.horizon+' 年'],
-    [],
-    ['','ケース構成','① ノーマル／② 悲観（賃料−'+(p.scenarioSpread*100).toFixed(0)+'%）／③ 楽観（賃料+'+(p.scenarioSpread*100).toFixed(0)+'%）'],
-    [],
-    ['','※本シミュレーションは入力条件に基づく概算です。実際の収支・税額を保証するものではありません。'],
-    ['','※税務上の取扱いは税理士等の専門家にご確認ください。'],
-    [],
-    ['','建てサポ（株式会社YMSマネージメント）｜tatesapo.jp'],
-  ];
-  const ws0=XLSX.utils.aoa_to_sheet(cover);
-  ws0['!cols']=[{wch:3},{wch:24},{wch:60}];
-  XLSX.utils.book_append_sheet(wb,ws0,'①表紙');
+  /* ===== スタイル定義 ===== */
+  const NAVY = '1B2A4A', GOLD = 'B9964F', GOLD_SOFT = 'F4ECDC', WHITE = 'FFFFFF';
+  const LIGHT_GRAY = 'F2F4F8', LINE = 'DFE2E8', WARN = 'B2422F';
 
-  const caseSheets=[['N','②ノーマル'],['P','③悲観'],['O','④楽観']];
+  function hdr(val){ return {v:val, t:'s', s:{
+    fill:{fgColor:{rgb:NAVY}},
+    font:{color:{rgb:WHITE}, bold:true, name:'Yu Gothic', sz:10},
+    alignment:{horizontal:'center', vertical:'center', wrapText:true},
+    border:{top:{style:'thin',color:{rgb:NAVY}},bottom:{style:'thin',color:{rgb:NAVY}},
+            left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function hdrL(val){ return {v:val, t:'s', s:{
+    fill:{fgColor:{rgb:NAVY}},
+    font:{color:{rgb:WHITE}, bold:true, name:'Yu Gothic', sz:10},
+    alignment:{horizontal:'left', vertical:'center'},
+    border:{top:{style:'thin',color:{rgb:NAVY}},bottom:{style:'thin',color:{rgb:NAVY}},
+            left:{style:'thin',color:{rgb:NAVY}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function cell(val, bold, bg, align, fmt){
+    const s = {
+      font:{name:'Yu Gothic', sz:10, bold:!!bold, color:{rgb: bg===WARN ? WHITE : '22252B'}},
+      fill:{fgColor:{rgb: bg||WHITE}},
+      alignment:{horizontal:align||'right', vertical:'center'},
+      border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},
+              left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+    };
+    if(fmt) s.numFmt = fmt;
+    if(typeof val === 'number') return {v:val, t:'n', s};
+    return {v:val||'', t:'s', s};
+  }
+
+  function secCell(val){ return {v:val, t:'s', s:{
+    fill:{fgColor:{rgb:GOLD_SOFT}},
+    font:{color:{rgb:NAVY}, bold:true, name:'Yu Gothic', sz:10},
+    alignment:{horizontal:'left', vertical:'center'},
+    border:{top:{style:'medium',color:{rgb:GOLD}},bottom:{style:'medium',color:{rgb:GOLD}},
+            left:{style:'medium',color:{rgb:GOLD}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function sumCell(val, neg){ return {v:val, t:'n', s:{
+    fill:{fgColor:{rgb:GOLD_SOFT}},
+    font:{color:{rgb: neg&&val<0 ? WARN : NAVY}, bold:true, name:'Yu Gothic', sz:10},
+    alignment:{horizontal:'right', vertical:'center'},
+    numFmt:'#,##0',
+    border:{top:{style:'thin',color:{rgb:GOLD}},bottom:{style:'thin',color:{rgb:GOLD}},
+            left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function numCell(val, neg){ return {v:Math.round(val/1000), t:'n', s:{
+    fill:{fgColor:{rgb:WHITE}},
+    font:{color:{rgb: neg&&val<0 ? WARN : '22252B'}, name:'Yu Gothic', sz:10},
+    alignment:{horizontal:'right', vertical:'center'},
+    numFmt:'#,##0',
+    border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},
+            left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function indCell(val){ return {v:Math.round(val/1000), t:'n', s:{
+    fill:{fgColor:{rgb:WHITE}},
+    font:{color:{rgb:'5a5f6b'}, name:'Yu Gothic', sz:9},
+    alignment:{horizontal:'right', vertical:'center'},
+    numFmt:'#,##0',
+    border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},
+            left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function lblCell(val, indent){ return {v:(indent?'　'+val:val), t:'s', s:{
+    fill:{fgColor:{rgb:WHITE}},
+    font:{color:{rgb:indent?'5a5f6b':'22252B'}, name:'Yu Gothic', sz:indent?9:10},
+    alignment:{horizontal:'left', vertical:'center'},
+    border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},
+            left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function kpiCell(val, unit){ return {v:val+(unit||''), t:'s', s:{
+    fill:{fgColor:{rgb:WHITE}},
+    font:{color:{rgb:NAVY}, bold:true, name:'Yu Gothic', sz:14},
+    alignment:{horizontal:'center', vertical:'center'},
+    border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},
+            left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}
+  }}; }
+
+  function titleCell(val){ return {v:val, t:'s', s:{
+    font:{color:{rgb:NAVY}, bold:true, name:'Yu Gothic', sz:16},
+    alignment:{horizontal:'left', vertical:'center'}
+  }}; }
+
+  function labelCell(val){ return {v:val, t:'s', s:{
+    font:{color:{rgb:'5a5f6b'}, name:'Yu Gothic', sz:9},
+    alignment:{horizontal:'center', vertical:'center'}
+  }}; }
+
+  const pct4 = v => (v*100).toFixed(2)+'%';
+  const man = v => Math.round(v/10000).toLocaleString('ja-JP')+'万円';
+
+  /* ===== ① 表紙 ===== */
+  const m = results.N.metrics, s = results.N;
+  const cover = [
+    [{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'}],
+    [{v:'',t:'s'}, titleCell('賃貸経営 事業収支シミュレーション')],
+    [{v:'',t:'s'}],
+    [{v:'',t:'s'}, cell('作成日',true,LIGHT_GRAY,'left'), cell(today,false,WHITE,'left'),{v:'',t:'s'}, cell('保有主体',true,LIGHT_GRAY,'left'), cell(p.owner==='corp'?'法人':'個人',false,WHITE,'left')],
+    [{v:'',t:'s'}, cell('建物構造',true,LIGHT_GRAY,'left'), cell(p.structure,false,WHITE,'left'),{v:'',t:'s'}, cell('シミュレーション期間',true,LIGHT_GRAY,'left'), cell(p.horizon+'年',false,WHITE,'left')],
+    [{v:'',t:'s'}, cell('賃貸専有面積',true,LIGHT_GRAY,'left'), cell(p.rentableArea+' ㎡',false,WHITE,'left'),{v:'',t:'s'}, cell('借入金利（事業分）',true,LIGHT_GRAY,'left'), cell((p.interestRate*100).toFixed(2)+'%',false,WHITE,'left')],
+    [{v:'',t:'s'}, cell('建築費総額',true,LIGHT_GRAY,'left'), cell(R1(p.constructionCost).toLocaleString()+' 円',false,WHITE,'left'),{v:'',t:'s'}, cell('借入期間',true,LIGHT_GRAY,'left'), cell(p.loanYears+'年',false,WHITE,'left')],
+    [{v:'',t:'s'}, cell('借入金額（事業分）',true,LIGHT_GRAY,'left'), cell(R1(p.loanAmount).toLocaleString()+' 円',false,WHITE,'left'),{v:'',t:'s'}, cell('自己資金',true,LIGHT_GRAY,'left'), cell(R1(p.equity).toLocaleString()+' 円',false,WHITE,'left')],
+    [{v:'',t:'s'}],
+    [{v:'',t:'s'}, {v:'■ 主要KPI（ノーマルケース）',t:'s',s:{font:{bold:true,color:{rgb:NAVY},name:'Yu Gothic',sz:12},fill:{fgColor:{rgb:GOLD_SOFT}},border:{bottom:{style:'medium',color:{rgb:GOLD}}}}}],
+    [{v:'',t:'s'}],
+    [{v:'',t:'s'}, labelCell('満室想定年間賃料'), labelCell('表面利回り'), labelCell('NOI利回り（初年度）'), labelCell('初年度税引後CF'), labelCell('平均DCR'), labelCell('借入完済可能年')],
+    [{v:'',t:'s'}, kpiCell(man(m.gross)), kpiCell(pct4(m.grossYield)), kpiCell(pct4(m.noiPct)), kpiCell(man(m.cf1)), kpiCell(m.avgDCR.toFixed(2)), kpiCell(m.debtFree?m.debtFree+'年目':'期間内到達せず')],
+    [{v:'',t:'s'}],
+    [{v:'',t:'s'}, {v:'■ シナリオ比較（'+p.horizon+'年累計CF）',t:'s',s:{font:{bold:true,color:{rgb:NAVY},name:'Yu Gothic',sz:12},fill:{fgColor:{rgb:GOLD_SOFT}},border:{bottom:{style:'medium',color:{rgb:GOLD}}}}}],
+    [{v:'',t:'s'}],
+    [{v:'',t:'s'}, labelCell('ケース'), labelCell('㎡賃料'), labelCell('初年度税引後CF'), labelCell('平均DCR'), labelCell(p.horizon+'年累計CF')],
+    [{v:'',t:'s'},
+      cell('① ノーマル',true,NAVY,'center'), cell(R1(p.sqmRent).toLocaleString()+'円/㎡',false,WHITE,'center'),
+      cell(man(m.cf1),false,WHITE,'center'), cell(m.avgDCR.toFixed(2),false,WHITE,'center'),
+      cell(man(s.years[s.years.length-1].cum),false,WHITE,'center')],
+    [{v:'',t:'s'},
+      cell('② 悲観 (賃料-'+(p.scenarioSpread*100).toFixed(0)+'%)',true,{rgb:'FCF0EE'},'center'),
+      cell(R1(results.P.p.sqmRent).toLocaleString()+'円/㎡',false,WHITE,'center'),
+      cell(man(results.P.metrics.cf1),false,{rgb:'FCF0EE'},'center'),
+      cell(results.P.metrics.avgDCR.toFixed(2),false,{rgb:'FCF0EE'},'center'),
+      cell(man(results.P.years[results.P.years.length-1].cum),false,{rgb:'FCF0EE'},'center')],
+    [{v:'',t:'s'},
+      cell('③ 楽観 (賃料+'+(p.scenarioSpread*100).toFixed(0)+'%)',true,{rgb:'F0F7F4'},'center'),
+      cell(R1(results.O.p.sqmRent).toLocaleString()+'円/㎡',false,WHITE,'center'),
+      cell(man(results.O.metrics.cf1),false,{rgb:'F0F7F4'},'center'),
+      cell(results.O.metrics.avgDCR.toFixed(2),false,{rgb:'F0F7F4'},'center'),
+      cell(man(results.O.years[results.O.years.length-1].cum),false,{rgb:'F0F7F4'},'center')],
+    [{v:'',t:'s'}],
+    [{v:'',t:'s'}, {v:'※本シミュレーションは入力条件に基づく概算です。実際の収支・税額を保証するものではありません。',t:'s',s:{font:{color:{rgb:'9aa0ab'},name:'Yu Gothic',sz:9}}}],
+    [{v:'',t:'s'}, {v:'※税務上の取扱いは税理士等の専門家にご確認ください。｜建てサポ（株式会社YMSマネージメント）｜tatesapo.jp',t:'s',s:{font:{color:{rgb:'9aa0ab'},name:'Yu Gothic',sz:9}}}],
+  ];
+  const ws0 = XLSX.utils.aoa_to_sheet(cover);
+  ws0['!cols'] = [{wch:2},{wch:22},{wch:20},{wch:20},{wch:20},{wch:20}];
+  ws0['!rows'] = [{hpt:20},{hpt:30},{hpt:10},{hpt:22},{hpt:22},{hpt:22},{hpt:22},{hpt:22},{hpt:10},{hpt:24},{hpt:10},{hpt:16},{hpt:30},{hpt:10},{hpt:24},{hpt:10},{hpt:16},{hpt:24},{hpt:24},{hpt:24}];
+  XLSX.utils.book_append_sheet(wb, ws0, '①表紙');
+
+  /* ===== ②〜④ ケース別年次計画 ===== */
+  const caseSheets = [['N','②ノーマル'],['P','③悲観'],['O','④楽観']];
+  const CASE_NAME = {N:'① ノーマルケース',P:'② 悲観ケース',O:'③ 楽観ケース'};
   caseSheets.forEach(([key,name])=>{
-    const S=results[key], sp=S.p, m=S.metrics;
-    const aoa=[];
-    aoa.push([CASE_NAME[key]+'　事業計画','','（作成日 '+today+'）']);
-    aoa.push([]);
-    aoa.push(['■ 前提条件']);
-    aoa.push(['㎡賃料（月額）',sp.sqmRent,'円/㎡','賃料下落率（入替時）',sp.rentDeclineRate,'']);
-    aoa.push(['賃貸専有面積',sp.rentableArea,'㎡','平均入居年数',sp.turnoverYears,'年']);
-    aoa.push(['建築費総額',R1(sp.constructionCost),'円','平均募集期間',sp.leaseUpMonths,'ヶ月']);
-    aoa.push(['借入金額（事業分）',R1(sp.loanAmount),'円','借入金利',sp.interestRate,'']);
-    aoa.push(['借入期間',sp.loanYears,'年','返済方式',sp.loanMethod==='equal_payment'?'元利均等':'元金均等','']);
-    aoa.push(['管理手数料率',sp.mgmtRate,'','保有主体',sp.owner==='corp'?'法人':'個人','']);
-    aoa.push([]);
-    aoa.push(['■ 主要指標']);
-    aoa.push(['満室想定年間賃料',R1(m.gross),'円','表面利回り',m.grossYield,'']);
-    aoa.push(['初年度NOI',R1(m.noi1),'円','NOI利回り',m.noiPct,'']);
-    aoa.push(['初年度税引後CF',R1(m.cf1),'円','平均DCR',Number(m.avgDCR.toFixed(3)),'']);
-    aoa.push(['経費率（初年度）',m.expRatio,'','借入完済可能年',m.debtFree?m.debtFree+'年目':'期間内到達せず','']);
-    aoa.push([]);
-    aoa.push(['■ 年次事業計画表（単位：円）']);
-    const head=['項目',...S.years.map(r=>r.y+'年目')];
-    aoa.push(head);
-    planRows(sp).forEach(row=>{
-      if(row.sec){aoa.push(['【'+row.sec+'】']);return;}
-      aoa.push([row.l.replace(/　/g,''),...S.years.map(r=>R1(row.f(r)))]);
+    const S = results[key], sp = S.p, sm = S.metrics;
+    const years = S.years;
+    const aoa = [];
+    const yrHdr = [{v:'項目（単位：千円）',t:'s',s:{fill:{fgColor:{rgb:NAVY}},font:{color:{rgb:WHITE},bold:true,name:'Yu Gothic',sz:10},alignment:{horizontal:'left',vertical:'center'},border:{bottom:{style:'medium',color:{rgb:GOLD}},right:{style:'thin',color:{rgb:LINE}}}}}];
+    years.forEach(r => yrHdr.push(hdr(r.y+'年目')));
+    aoa.push(yrHdr);
+
+    const rows = [
+      {sec:'収入'},
+      {l:'満室想定賃料',        f:r=>r.rentFull,         ind:false, sum:false},
+      {l:'  家賃下落考慮後',    f:r=>r.rentDeclined,     ind:true,  sum:false},
+      {l:'実効賃料収入',        f:r=>r.eff,              ind:false, sum:true},
+      {sec:'費用'},
+      {l:'費用合計',            f:r=>-r.cost,            ind:false, sum:true},
+      {l:'  管理費',            f:r=>-r.mgmt,            ind:true},
+      {l:'  広告費（AD）',      f:r=>-r.ad,              ind:true},
+      {l:'  修繕費（原状回復）',f:r=>-r.repair,          ind:true},
+      {l:'  大規模修繕費',      f:r=>-r.capex,           ind:true},
+      {l:'  定期清掃費',        f:r=>-r.cleaning,        ind:true},
+      {l:'  保守点検費',        f:r=>-r.inspection,      ind:true},
+      {l:'  EVメンテナンス費',  f:r=>-r.ev,              ind:true},
+      {l:'  固都税（土地）',    f:r=>-r.taxLand,         ind:true},
+      {l:'  固都税（建物）',    f:r=>-r.taxBldg,         ind:true},
+      {l:'  火災保険料',        f:r=>-r.fireIns,         ind:true},
+      {l:'  初期費用（1年目）', f:r=>-r.init,            ind:true},
+      {sec:'収支・税務'},
+      {l:'NOI（純収益）',       f:r=>r.noi,              ind:false, sum:true},
+      {l:'ローン返済額（事業）',f:r=>-r.loan.total,      ind:false},
+      {l:'  うち元金',          f:r=>-r.loan.principalPaid, ind:true},
+      {l:'  うち利息',          f:r=>-r.loan.interestPaid,  ind:true},
+      {l:'減価償却費',          f:r=>-r.dep,             ind:false},
+      {l:'不動産所得（税務上）',f:r=>r.pretax,           ind:false},
+      {l:sp.owner==='corp'?'法人税等（増分）':'所得税・住民税（増分）', f:r=>-r.tax, ind:false},
+      {l:'税引後手残りCF',      f:r=>r.cf,               ind:false, sum:true},
+      {l:'累計CF',              f:r=>r.cum,              ind:false, sum:true},
+      {l:'借入残高',            f:r=>r.loan.balance,     ind:false},
+    ];
+
+    rows.forEach(row => {
+      if(row.sec){
+        const secRow = [secCell('■ '+row.sec)];
+        years.forEach(()=> secRow.push({v:'',t:'s',s:{fill:{fgColor:{rgb:GOLD_SOFT}},border:{top:{style:'medium',color:{rgb:GOLD}},bottom:{style:'medium',color:{rgb:GOLD}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}}));
+        aoa.push(secRow);
+        return;
+      }
+      if(row.sum){
+        const sumRow = [lblCell(row.l, false)];
+        years.forEach(r => sumRow.push(sumCell(Math.round(row.f(r)/1000), true)));
+        aoa.push(sumRow);
+      } else if(row.ind){
+        const indRow = [lblCell(row.l, true)];
+        years.forEach(r => indRow.push(indCell(row.f(r))));
+        aoa.push(indRow);
+      } else {
+        const normRow = [lblCell(row.l, false)];
+        years.forEach(r => normRow.push(numCell(row.f(r), true)));
+        aoa.push(normRow);
+      }
     });
-    const ws=XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols']=[{wch:26},...S.years.map(()=>({wch:13}))];
-    XLSX.utils.book_append_sheet(wb,ws,name);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:22}, ...years.map(()=>({wch:12}))];
+    ws['!rows'] = aoa.map(()=>({hpt:20}));
+    ws['!freeze'] = {xSplit:1, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, name);
   });
 
-  const S=results.N;
-  const aoa5=[['借入金返済予定表（事業分）','','（単位：円）']];
-  aoa5.push(['借入金額',R1(p.loanAmount),'','金利',p.interestRate,'','期間',p.loanYears+'年','','返済方式',p.loanMethod==='equal_payment'?'元利均等返済':'元金均等返済']);
-  aoa5.push([]);
-  aoa5.push(['年次','元金返済額','支払利息','返済額合計','期末残高']);
-  S.loanSched.forEach((ln,i)=>{aoa5.push([(i+1)+'年目',R1(ln.principalPaid),R1(ln.interestPaid),R1(ln.total),R1(ln.balance)]);});
-  const tot=S.loanSched.reduce((a,l)=>({p:a.p+l.principalPaid,i:a.i+l.interestPaid,t:a.t+l.total}),{p:0,i:0,t:0});
-  aoa5.push(['合計',R1(tot.p),R1(tot.i),R1(tot.t),'']);
-  if(p.homeLoan && p.homeLoan.amount>0){
-    aoa5.push([]);
-    aoa5.push(['【参考】住宅ローン返済予定表（自宅部分・事業外）']);
-    aoa5.push(['借入金額',R1(p.homeLoan.amount),'','金利',p.homeLoan.rate,'','期間',p.homeLoan.years+'年','','返済方式',p.homeLoan.method==='equal_payment'?'元利均等返済':'元金均等返済']);
-    aoa5.push(['年次','元金返済額','支払利息','返済額合計','期末残高']);
-    buildLoanSchedule(p.homeLoan.amount,p.homeLoan.rate,p.homeLoan.years,p.homeLoan.method,p.horizon).forEach((ln,i)=>{
-      aoa5.push([(i+1)+'年目',R1(ln.principalPaid),R1(ln.interestPaid),R1(ln.total),R1(ln.balance)]);
-    });
-  }
-  const ws5=XLSX.utils.aoa_to_sheet(aoa5);
-  ws5['!cols']=[{wch:10},{wch:14},{wch:14},{wch:14},{wch:16},{wch:8},{wch:10},{wch:10},{wch:4},{wch:10},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,ws5,'⑤借入返済予定表');
+  /* ===== ⑤ 借入返済予定表 ===== */
+  const S5 = results.N;
+  const aoa5 = [];
+  aoa5.push([hdrL('借入金返済予定表（事業分）　単位：円'), hdr('元金返済額'), hdr('支払利息'), hdr('返済額合計'), hdr('期末残高')]);
+  S5.loanSched.forEach((ln,i)=>{
+    const bg = i%2===0 ? WHITE : LIGHT_GRAY;
+    aoa5.push([
+      cell((i+1)+'年目', false, bg, 'center'),
+      {v:R1(ln.principalPaid), t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+      {v:R1(ln.interestPaid),  t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10,color:{rgb:'5a5f6b'}},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+      {v:R1(ln.total),         t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10,bold:true},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+      {v:R1(ln.balance),       t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+    ]);
+  });
+  const tot5 = S5.loanSched.reduce((a,l)=>({p:a.p+l.principalPaid,i:a.i+l.interestPaid,t:a.t+l.total}),{p:0,i:0,t:0});
+  aoa5.push([cell('合計',true,GOLD_SOFT,'center'),sumCell(R1(tot5.p)),sumCell(R1(tot5.i)),sumCell(R1(tot5.t)),{v:'—',t:'s',s:{fill:{fgColor:{rgb:GOLD_SOFT}},font:{bold:true,name:'Yu Gothic'},alignment:{horizontal:'center'}}}]);
+  const ws5 = XLSX.utils.aoa_to_sheet(aoa5);
+  ws5['!cols'] = [{wch:18},{wch:16},{wch:16},{wch:16},{wch:18}];
+  ws5['!rows'] = aoa5.map(()=>({hpt:20}));
+  XLSX.utils.book_append_sheet(wb, ws5, '⑤借入返済予定表');
 
-  const dep=S.depObj;
-  const aoa6=[['減価償却計画表','','（単位：円）']];
-  aoa6.push(['償却基礎額（建築費−初期費用）',R1(Math.max(p.constructionCost-p.initialCosts,0)),'','償却方法：定額法']);
+  /* ===== ⑥ 償却計画表 ===== */
+  const dep = S5.depObj;
+  const aoa6 = [];
+  const depHdr = [hdrL('資産区分'), hdr('取得価額（円）'), hdr('構成比'), hdr('耐用年数'), hdr('年間償却額（円）')];
+  aoa6.push(depHdr);
+  dep.assets.forEach((a,i)=>{
+    const bg = i%2===0 ? WHITE : LIGHT_GRAY;
+    aoa6.push([
+      cell(a.label, false, bg, 'left'),
+      {v:R1(a.acq), t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+      {v:parseFloat((a.acq/Math.max(p.constructionCost-p.initialCosts,1)*100).toFixed(1)), t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'0.0"%"',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+      cell(a.life+'年', false, bg, 'center'),
+      {v:R1(a.annual), t:'n', s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}},
+    ]);
+  });
+  const totAcq = dep.assets.reduce((s,a)=>s+a.acq,0);
+  const totAnn = dep.assets.reduce((s,a)=>s+a.annual,0);
+  aoa6.push([cell('合計',true,GOLD_SOFT,'left'),sumCell(R1(totAcq)),{v:'100.0%',t:'s',s:{fill:{fgColor:{rgb:GOLD_SOFT}},font:{bold:true,name:'Yu Gothic',sz:10},alignment:{horizontal:'right'}}},{v:'—',t:'s',s:{fill:{fgColor:{rgb:GOLD_SOFT}},font:{bold:true,name:'Yu Gothic'},alignment:{horizontal:'center'}}},sumCell(R1(totAnn))]);
   aoa6.push([]);
-  aoa6.push(['資産区分','取得価額','構成比','耐用年数','年間償却額']);
-  dep.assets.forEach(a=>{aoa6.push([a.label,R1(a.acq),a.acq/Math.max(p.constructionCost-p.initialCosts,1),a.life+'年',R1(a.annual)]);});
-  aoa6.push(['合計',R1(dep.assets.reduce((s,a)=>s+a.acq,0)),1,'',R1(dep.assets.reduce((s,a)=>s+a.annual,0))]);
-  aoa6.push([]);
-  aoa6.push(['■ 年次償却スケジュール']);
-  aoa6.push(['年次',...dep.assets.map(a=>a.label),'償却費合計','大規模修繕費（費用計上）']);
+  const depSchedHdr = [hdrL('年次'), ...dep.assets.map(a=>hdr(a.label)), hdr('償却費合計（円）'), hdr('大規模修繕費（円）')];
+  aoa6.push(depSchedHdr);
   for(let y=1;y<=p.horizon;y++){
-    const row=[y+'年目']; let s=0;
-    dep.assets.forEach(a=>{const v=y<=a.life?a.annual:0;s+=v;row.push(R1(v));});
-    row.push(R1(s)); row.push(R1(p.capexAnnual)); aoa6.push(row);
+    const bg = y%2===0 ? LIGHT_GRAY : WHITE;
+    const row = [cell(y+'年目', false, bg, 'center')];
+    let s=0;
+    dep.assets.forEach(a=>{
+      const v=y<=a.life?a.annual:0; s+=v;
+      row.push({v:R1(v),t:'n',s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}});
+    });
+    row.push(sumCell(R1(s)));
+    row.push({v:R1(p.capexAnnual),t:'n',s:{fill:{fgColor:{rgb:bg}},font:{name:'Yu Gothic',sz:10},alignment:{horizontal:'right'},numFmt:'#,##0',border:{top:{style:'thin',color:{rgb:LINE}},bottom:{style:'thin',color:{rgb:LINE}},left:{style:'thin',color:{rgb:LINE}},right:{style:'thin',color:{rgb:LINE}}}}});
+    aoa6.push(row);
   }
-  aoa6.push([]);
-  aoa6.push(['※大規模修繕費は年額'+R1(p.capexAnnual)+'円を費用計上する前提です。']);
-  const ws6=XLSX.utils.aoa_to_sheet(aoa6);
-  ws6['!cols']=[{wch:10},...dep.assets.map(()=>({wch:14})),{wch:14},{wch:22}];
-  XLSX.utils.book_append_sheet(wb,ws6,'⑥償却計画表');
+  const ws6 = XLSX.utils.aoa_to_sheet(aoa6);
+  ws6['!cols'] = [{wch:10},...dep.assets.map(()=>({wch:16})),{wch:16},{wch:16}];
+  ws6['!rows'] = aoa6.map(()=>({hpt:20}));
+  XLSX.utils.book_append_sheet(wb, ws6, '⑥償却計画表');
 
   XLSX.writeFile(wb,'建てサポ_事業収支シミュレーション_'+today.replace(/\//g,'')+'.xlsx');
 }
