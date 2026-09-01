@@ -147,12 +147,8 @@ table.plan td.neg{color:var(--bad)}
 .case-tabs button[data-case="O"].on{background:var(--good);border-color:var(--good)}
 .btn-xlsx{background:#1d7a5f;color:#fff}
 
-/* ===== メール取得エリア（改修済み）===== */
-.dlbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--navy);border-radius:12px;padding:18px 22px;color:#fff;margin-bottom:20px}
-.dlbar .t{font-size:14px;font-weight:700;margin-right:auto}
+/* ===== メール取得エリア ===== */
 .btn-pdf{background:var(--gold);color:#fff}
-.btn-mail{background:#fff;color:var(--navy);font-size:14px;font-weight:700;padding:13px 28px;border-radius:10px;border:0;cursor:pointer;white-space:nowrap}
-.btn-mail:hover{background:var(--gold-soft)}
 
 .lead-box{background:var(--gold-soft);border:1px solid #e6d9b8;border-radius:12px;padding:20px 24px;margin-bottom:20px}
 .lead-box h3{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:6px}
@@ -377,20 +373,15 @@ footer{background:var(--navy-2);color:#b9c3d6;font-size:12px;padding:18px 0;text
       <table class="plan" id="planTable"></table>
     </div>
 
-    <!-- ダウンロードバー -->
-    <div class="dlbar">
-      <span class="t">資料としてダウンロード</span>
-      <button class="btn btn-pdf" onclick="window.print()">PDFで保存</button>
-      <button class="btn btn-xlsx" onclick="downloadExcel()">Excelで保存</button>
-    </div>
+
 
     <!-- リード取得ボックス -->
     <div class="lead-box">
-      <h3>📩 シミュレーション結果をメールで受け取る</h3>
-      <p>メールアドレスを登録すると、建てサポからの収支改善ノウハウや最新情報もあわせてお届けします。</p>
+      <h3>📩 シミュレーション結果をメールでPDF・Excelで受け取る</h3>
+      <p>メールアドレスを入力してください。PDFとExcelデータをお送りします。建てサポからの収支改善ノウハウや最新情報もあわせてお届けします。</p>
       <div class="lead-form">
         <input type="email" id="leadEmail" placeholder="your@email.com">
-        <button class="btn-send" onclick="sendMail()">メールで受け取る</button>
+        <button class="btn-send" onclick="sendMail()">PDFとExcelをメールで受け取る</button>
       </div>
       <div class="lead-err" id="leadErr">メールアドレスを正しく入力してください</div>
     </div>
@@ -408,15 +399,14 @@ footer{background:var(--navy-2);color:#b9c3d6;font-size:12px;padding:18px 0;text
 
 /* ====== Googleフォーム設定 ====== */
 const GFORM_BASE = 'https://docs.google.com/forms/d/e/1FAIpQLScjbQgurZeCbwbw-5Gv8oRPlCsgleT3pJekY-vx1qwQMxpktg/viewform';
-const GFORM_EMAIL_FIELD = 'entry.1045781291'; // ※フォームのentry IDに合わせて要確認
+const GFORM_EMAIL_FIELD = 'entry.502736381';
 
-/* ====== メール送信（Googleフォームへ遷移）====== */
+/* ====== メール送信 + ダウンロード ====== */
 function sendMail(){
   const emailEl = document.getElementById('leadEmail');
   const errEl   = document.getElementById('leadErr');
   const email   = emailEl.value.trim();
 
-  // バリデーション
   if(!email || !email.includes('@') || !email.includes('.')){
     errEl.style.display = 'block';
     emailEl.focus();
@@ -427,6 +417,12 @@ function sendMail(){
   // Googleフォームへメアドをプリフィルして遷移
   const url = GFORM_BASE + '?usp=pp_url&' + GFORM_EMAIL_FIELD + '=' + encodeURIComponent(email);
   window.open(url, '_blank');
+
+  // PDF・Excel両方をダウンロード
+  if(results){
+    downloadExcel();
+    setTimeout(()=>{ window.print(); }, 800);
+  }
 }
 
 /* ====== 3桁カンマ入力 ====== */
