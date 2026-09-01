@@ -6,6 +6,8 @@
 <title>賃貸経営シミュレーション｜建てサポ</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
   --navy:#1b2a4a; --navy-2:#24365c; --ink:#22252b; --ink-2:#5a5f6b;
@@ -429,9 +431,36 @@ function downloadWithEmail(){
     body: JSON.stringify({email: email, timestamp: new Date().toISOString()})
   }).catch(()=>{});
 
-  // Excel・PDFをダウンロード
+  // Excelをダウンロード
   downloadExcel();
-  setTimeout(()=>{ window.print(); }, 800);
+  // PDFをダウンロード
+  setTimeout(()=>{ downloadPDF(); }, 500);
+}
+
+/* ====== PDF生成・ダウンロード ====== */
+async function downloadPDF(){
+  const { jsPDF } = window.jspdf;
+  const el = document.getElementById('result');
+  const today = new Date().toLocaleDateString('ja-JP').replace(/\//g,'');
+  const hideEls = document.querySelectorAll('.case-tabs, .lead-box');
+  hideEls.forEach(e => e.style.visibility='hidden');
+  try {
+    const canvas = await html2canvas(el, {scale:1.5, useCORS:true, logging:false, windowWidth:1080});
+    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+    const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+    const imgH = pdfW * (canvas.height / canvas.width);
+    let y = 0;
+    while(y < imgH){
+      if(y > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, -y, pdfW, imgH);
+      y += pdfH;
+    }
+    pdf.save('建てサポ_事業収支シミュレーション_' + today + '.pdf');
+  } finally {
+    hideEls.forEach(e => e.style.visibility='');
+  }
 }
 
 /* ====== 3桁カンマ入力 ====== */
