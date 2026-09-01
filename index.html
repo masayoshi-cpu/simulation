@@ -377,11 +377,11 @@ footer{background:var(--navy-2);color:#b9c3d6;font-size:12px;padding:18px 0;text
 
     <!-- リード取得ボックス -->
     <div class="lead-box">
-      <h3>📩 シミュレーション結果をメールでPDF・Excelで受け取る</h3>
-      <p>メールアドレスを入力してください。PDFとExcelデータをお送りします。建てサポからの収支改善ノウハウや最新情報もあわせてお届けします。</p>
+      <h3>📩 シミュレーション結果をPDF・Excelでダウンロード</h3>
+      <p>メールアドレスを入力するとダウンロードボタンが有効になります。入力いただいたメールアドレスには建てサポからの収支改善ノウハウや最新情報をお届けします。</p>
       <div class="lead-form">
-        <input type="email" id="leadEmail" placeholder="your@email.com">
-        <button class="btn-send" onclick="sendMail()">PDFとExcelをメールで受け取る</button>
+        <input type="email" id="leadEmail" placeholder="your@email.com" oninput="onEmailInput()">
+        <button id="downloadBtn" class="btn-send" onclick="downloadWithEmail()" disabled style="opacity:0.4;cursor:not-allowed;">PDFとExcelをダウンロード</button>
       </div>
       <div class="lead-err" id="leadErr">メールアドレスを正しく入力してください</div>
     </div>
@@ -398,31 +398,40 @@ footer{background:var(--navy-2);color:#b9c3d6;font-size:12px;padding:18px 0;text
    ============================================================ */
 
 /* ====== Googleフォーム設定 ====== */
-const GFORM_BASE = 'https://docs.google.com/forms/d/e/1FAIpQLScjbQgurZeCbwbw-5Gv8oRPlCsgleT3pJekY-vx1qwQMxpktg/viewform';
-const GFORM_EMAIL_FIELD = 'entry.502736381';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyX0XHnoe1MgtDY9Bn7wg4s4XrvNBsqcD1-fq0R7BLiASq3q8Eyap9EFE7E6BIRPs9B/exec';
 
-/* ====== メール送信 + ダウンロード ====== */
-function sendMail(){
-  const emailEl = document.getElementById('leadEmail');
-  const errEl   = document.getElementById('leadErr');
-  const email   = emailEl.value.trim();
+/* ====== ダウンロードボタン活性制御 ====== */
+function onEmailInput(){
+  const email = document.getElementById('leadEmail').value.trim();
+  const valid = email.includes('@') && email.includes('.') && email.length > 4;
+  const btn = document.getElementById('downloadBtn');
+  btn.disabled = !valid;
+  btn.style.opacity = valid ? '1' : '0.4';
+  btn.style.cursor  = valid ? 'pointer' : 'not-allowed';
+  document.getElementById('leadErr').style.display = 'none';
+}
 
+/* ====== ダウンロード実行 + GASへ記録 ====== */
+function downloadWithEmail(){
+  if(!results){ alert('先にシミュレーションを実行してください'); return; }
+  const email = document.getElementById('leadEmail').value.trim();
   if(!email || !email.includes('@') || !email.includes('.')){
-    errEl.style.display = 'block';
-    emailEl.focus();
+    document.getElementById('leadErr').style.display = 'block';
     return;
   }
-  errEl.style.display = 'none';
+  document.getElementById('leadErr').style.display = 'none';
 
-  // Googleフォームへメアドをプリフィルして遷移
-  const url = GFORM_BASE + '?usp=pp_url&' + GFORM_EMAIL_FIELD + '=' + encodeURIComponent(email);
-  window.open(url, '_blank');
+  // GASへメールアドレスを送信（スプレッドシートに記録）
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email, timestamp: new Date().toISOString()})
+  }).catch(()=>{});
 
-  // PDF・Excel両方をダウンロード
-  if(results){
-    downloadExcel();
-    setTimeout(()=>{ window.print(); }, 800);
-  }
+  // Excel・PDFをダウンロード
+  downloadExcel();
+  setTimeout(()=>{ window.print(); }, 800);
 }
 
 /* ====== 3桁カンマ入力 ====== */
