@@ -229,12 +229,6 @@ footer{background:var(--navy-2);color:#b9c3d6;font-size:12px;padding:18px 0;text
   </div>
 </header>
 
-<div class="hero">
-  <div class="wrap">
-    <h1>賃貸経営 <span class="accent">収支シミュレーション</span><span class="beta-badge">β版</span></h1>
-    <p>建築条件・資金計画・税務条件を入力すると、35年間の事業収支・税引後キャッシュフロー・借入返済を試算します。個人・法人どちらの保有形態にも対応しています。</p>
-  </div>
-</div>
 
 <div class="wrap">
 
@@ -807,6 +801,9 @@ const HEADER_H=64;
 function scrollToEl(el){
   if(!el) return;
   const rect=el.getBoundingClientRect();
+  if(document.documentElement.classList.contains('embedded')){
+    parent.postMessage({type:'tatesapo-sim-scroll',top:rect.top+window.scrollY,height:rect.height},'https://tatesapo.jp');
+  }
   const vh=window.innerHeight;
   const avail=vh-HEADER_H;
   let top;
@@ -965,7 +962,7 @@ function run(){
   document.querySelector('.btn-run').classList.remove('ready');
   renderSummary();
   selectCase('N');
-  document.getElementById('result').scrollIntoView({behavior:'smooth'});
+  scrollToEl(document.getElementById('result'));
 }
 
 function renderSummary(){
@@ -1398,7 +1395,7 @@ updateSimpleTax();
 updateSteps();
 </script>
 <script>
-(function(){if(window.self===window.top)return;var last=0;function send(){var h=document.documentElement.scrollHeight;if(h!==last){last=h;parent.postMessage({type:'tatesapo-sim-height',height:h},'https://tatesapo.jp');}}
+(function(){if(window.self===window.top)return;var last=0;function send(){var h=Math.ceil(document.body.getBoundingClientRect().height);if(h!==last){last=h;parent.postMessage({type:'tatesapo-sim-height',height:h},'https://tatesapo.jp');}}
 window.addEventListener('load',send);new ResizeObserver(send).observe(document.body);})();
 </script>
 </body>
