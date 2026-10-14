@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>賃貸経営シミュレーション｜建てサポ</title>
+<title>賃貸経営シミュレーター｜建てサポ</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -546,7 +546,7 @@ async function downloadPDF(){
       pdf.addImage(imgData, 'JPEG', 0, -y, pdfW, imgH);
       y += pdfH;
     }
-    pdf.save('建てサポ_事業収支シミュレーション_' + today + '.pdf');
+    pdf.save('建てサポ_賃貸経営シミュレーター_' + today + '.pdf');
   } finally {
     hideEls.forEach(e => e.style.visibility='');
   }
@@ -958,7 +958,7 @@ function run(){
   };
   document.getElementById('result').style.display='block';
   document.getElementById('stamp').textContent=
-    '作成日：'+new Date().toLocaleDateString('ja-JP')+'｜保有主体：'+(p.owner==='corp'?'法人':'個人')+'｜建てサポ 収支シミュレーター';
+    '作成日：'+new Date().toLocaleDateString('ja-JP')+'｜保有主体：'+(p.owner==='corp'?'法人':'個人')+'｜建てサポ 賃貸経営シミュレーター';
   document.querySelector('.btn-run').classList.remove('ready');
   renderSummary();
   selectCase('N');
@@ -1201,7 +1201,7 @@ function downloadExcel(){
   const m = results.N.metrics, s = results.N;
   const cover = [
     [{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'},{v:'',t:'s'}],
-    [{v:'',t:'s'}, titleCell('賃貸経営 事業収支シミュレーション')],
+    [{v:'',t:'s'}, titleCell('建てサポ 賃貸経営シミュレーター｜事業収支の試算結果')],
     [{v:'',t:'s'}],
     [{v:'',t:'s'}, cell('作成日',true,LIGHT_GRAY,'left'), cell(today,false,WHITE,'left'),{v:'',t:'s'}, cell('保有主体',true,LIGHT_GRAY,'left'), cell(p.owner==='corp'?'法人':'個人',false,WHITE,'left')],
     [{v:'',t:'s'}, cell('建物構造',true,LIGHT_GRAY,'left'), cell(p.structure,false,WHITE,'left'),{v:'',t:'s'}, cell('シミュレーション期間',true,LIGHT_GRAY,'left'), cell(p.horizon+'年',false,WHITE,'left')],
@@ -1376,7 +1376,7 @@ function downloadExcel(){
   ws6['!freeze'] = {xSplit:1, ySplit:1};
   XLSX.utils.book_append_sheet(wb, ws6, '⑥償却計画表');
 
-  XLSX.writeFile(wb,'建てサポ_事業収支シミュレーション_'+today.replace(/\//g,'')+'.xlsx');
+  XLSX.writeFile(wb,'建てサポ_賃貸経営シミュレーター_'+today.replace(/\//g,'')+'.xlsx');
 }
 
 attachCommaFormat();
